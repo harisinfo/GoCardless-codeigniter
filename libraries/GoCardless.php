@@ -1,5 +1,16 @@
 <?php if ( ! defined('BASEPATH')) exit('No direct script access allowed'); 
-	
+/**
+ * GoCardless Class
+ *
+ * A CodeIgniter library to integrate the GoCardless Connect API
+ * https://gocardless.com/docs/connect_guide#resources-available
+ * 
+ * @author    Paul Dunn, paul@paul-dunn.com
+ * @copyright Copyright (c) 2012, Paul Dunn
+ * @license   http://www.opensource.org/licenses/mit-license.php
+ * @link      https://github.com/pauldunn/GoCardless
+ */
+ 	
 class GoCardless {
 	protected $_ci;
 	
@@ -10,7 +21,7 @@ class GoCardless {
 	
 	protected $resource 		= null;
 	protected $resource_type 	= null;
-	protected $url 				= null;
+	protected $url				= null;
 	protected $billing_address 	= null;
 	protected $redirect_uri 	= null;
 	protected $cancel_uri 		= null;

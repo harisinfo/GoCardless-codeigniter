@@ -1,16 +1,5 @@
 <?php if ( ! defined('BASEPATH')) exit('No direct script access allowed'); 
-/**
- * GoCardless Class
- *
- * A CodeIgniter library to integrate the GoCardless Connect API
- * https://gocardless.com/docs/connect_guide#resources-available
- * 
- * @author    Paul Dunn, paul@paul-dunn.com
- * @copyright Copyright (c) 2012, Paul Dunn
- * @license   http://www.opensource.org/licenses/mit-license.php
- * @link      https://github.com/pauldunn/GoCardless
- */
- 	
+	
 class GoCardless {
 	protected $_ci;
 	
@@ -21,7 +10,8 @@ class GoCardless {
 	
 	protected $resource 		= null;
 	protected $resource_type 	= null;
-	protected $url				= null;
+	protected $state		 	= null;
+	protected $url 				= null;
 	protected $billing_address 	= null;
 	protected $redirect_uri 	= null;
 	protected $cancel_uri 		= null;
@@ -45,11 +35,13 @@ class GoCardless {
 		$this->resource = array('client_id'		=> $this->app_identifier,
 						   		'nonce'			=> base64_encode(mt_rand() * mt_rand()),
 						   		'timestamp'		=> date('Y-m-d\TH:i:s\Z'),
+						   		'state'			=> @$this->state,
 						   		'redirect_uri'	=> @$this->redirect_uri,
 						   		'cancel_uri'	=> @$this->cancel_uri);
-						   
+
 		$this->resource[$this->resource_type] = array('merchant_id'		=> $this->merchant_id,
 													'interval_length'	=> @$params['interval_length'],
+													'description'		=> @$params['description'],
 													'interval_unit'		=> @$params['interval_unit']);
 													
 		if(isset($this->billing_address))
@@ -88,6 +80,11 @@ class GoCardless {
 		$this->billing_address = $address;
 	}
 	
+	public function set_state($state)
+	{
+		$this->state = $state;
+	}
+		
 	public function set_redirects($params)
 	{
 		if(isset($params['redirect_uri']))
@@ -142,6 +139,8 @@ class GoCardless {
 			// confirm receipt
 			$this->_ci->rest->post('confirm', array('resource_id' => $receipt['resource_id'],
 											'resource_type' => $receipt['resource_type']));
+			
+			return true;
 		}
 		else
 		{

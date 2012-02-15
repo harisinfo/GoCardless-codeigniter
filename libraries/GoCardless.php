@@ -2,11 +2,7 @@
 	
 class GoCardless {
 	protected $_ci;
-	
-	protected $merchant_id		= null;
-	protected $app_identifier 	= null;
-	protected $app_secret 		= null;
-	protected $merchant_token 	= null;
+	protected $config;
 	
 	protected $resource 		= null;
 	protected $resource_type 	= null;
@@ -16,14 +12,11 @@ class GoCardless {
 	protected $redirect_uri 	= null;
 	protected $cancel_uri 		= null;
 	
-	function __construct($params = array())
+	function __construct()
 	{
 		$this->_ci =& get_instance();
-
-		$this->merchant_id 		= $params['merchant_id'];
-		$this->app_identifier 	= $params['app_identifier'];
-		$this->app_secret 		= $params['app_secret'];
-		$this->merchant_token 	= $params['merchant_token'];
+		$this->_ci->load->config('GoCardless', TRUE);		
+		$this->config = $this->_ci->config->item('GoCardless');
 
 		log_message('debug', 'GoCardless Class Initialised');
 	}
@@ -32,14 +25,14 @@ class GoCardless {
 	{
 		$this->resource_type = $params['type'];
 		
-		$this->resource = array('client_id'		=> $this->app_identifier,
+		$this->resource = array('client_id'		=> $this->config['app_identifier'],
 						   		'nonce'			=> base64_encode(mt_rand() * mt_rand()),
 						   		'timestamp'		=> date('Y-m-d\TH:i:s\Z'),
 						   		'state'			=> @$this->state,
 						   		'redirect_uri'	=> @$this->redirect_uri,
 						   		'cancel_uri'	=> @$this->cancel_uri);
 
-		$this->resource[$this->resource_type] = array('merchant_id'		=> $this->merchant_id,
+		$this->resource[$this->resource_type] = array('merchant_id'		=> $this->config['merchant_id'],
 													'interval_length'	=> @$params['interval_length'],
 													'description'		=> @$params['description'],
 													'interval_unit'		=> @$params['interval_unit']);
@@ -52,17 +45,17 @@ class GoCardless {
 		switch ($this->resource_type) {
 			case 'subscription':
 				$this->resource['subscription']['amount'] = $params['amount'];
-				$this->url = 'https://sandbox.gocardless.com/connect/subscriptions/new';
+				$this->url = $this->config['subscriptions_url'];
 				break;	
 							
 			case 'pre_authorization':
 				$this->resource['pre_authorization']['max_amount'] = $params['amount'];
-				$this->url = 'https://sandbox.gocardless.com/connect/pre_authorizations/new';
+				$this->url = $this->config['pre_authorizations_url'];
 				break;	
 							
 			case 'bill':
 				$this->resource['bill']['amount'] = $params['amount'];
-				$this->url = 'https://sandbox.gocardless.com/connect/bills/new';
+				$this->url = $this->config['bills_url'];
 				
 				// bills dont need intervals
 				unset($this->resource['bill']['interval_length']);
@@ -70,7 +63,7 @@ class GoCardless {
 				break;			
 		}
 
-		$this->resource['signature'] = $this->signature($this->resource, $this->app_secret);
+		$this->resource['signature'] = $this->signature($this->resource, $this->config['app_secret']);
 
 		return true;
 	}
@@ -108,6 +101,9 @@ class GoCardless {
 			case 'iframe':
 				$output = $this->build_iframe();
 				break;
+			case 'url':
+				$output = $this->build_url();
+				break;
 				
 			default:
 				return false;
@@ -121,9 +117,9 @@ class GoCardless {
 		// setup restclient for confirming receipts
 		$this->_ci->load->spark('restclient/2.0.0');
 		$this->_ci->load->library('rest');
-		$this->_ci->rest->initialize(array('server' => 'https://sandbox.gocardless.com/api/v1/',
-											'http_user' => $this->app_identifier,
-											'http_pass' => $this->app_secret,
+		$this->_ci->rest->initialize(array('server' => $this->config['api_url'],
+											'http_user' => $this->config['app_identifier'],
+											'http_pass' => $this->config['app_secret'],
 											'http_auth' => 'basic'
 											));
 	
@@ -132,20 +128,22 @@ class GoCardless {
 		// their sig shouldn't be signed with other data
 		unset($receipt['signature']);
 		
-		$our_sig = $this->signature($receipt, $this->app_secret);
+		$our_sig = $this->signature($receipt, $this->config['app_secret']);
 
 		if($our_sig == $their_sig)
-		{
+		{			
 			// confirm receipt
-			$this->_ci->rest->post('confirm', array('resource_id' => $receipt['resource_id'],
-											'resource_type' => $receipt['resource_type']));
+			$confirmation = ($this->_ci->rest->post('confirm', array('resource_id' => $receipt['resource_id'],
+													'resource_type' => $receipt['resource_type'])));
 			
-			return true;
+			// Everything OK?
+			if (isset($confirmation->success) AND $confirmation->success == 1)
+			{
+				return true;
+			}
 		}
-		else
-		{
-			return false;
-		}
+		
+		return false;
 	}
 	
 	// build hidden inputs for use when POSTing to GoCardless
@@ -171,6 +169,11 @@ class GoCardless {
 	protected function build_iframe()
 	{
 		return '<iframe id="gocardless-form" src="' . $this->url . '?' . $this->to_query($this->resource) . '"></iframe>';
+	}
+	
+	protected function build_url()
+	{
+		return $this->url . '?' . $this->to_query($this->resource);
 	}
 	
 	// Thanks to GoCardless docs for the following two functions
